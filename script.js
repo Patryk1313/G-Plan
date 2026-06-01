@@ -158,6 +158,10 @@ function randomFact() {
 }
 
 function displayWorkoutLabel(type) {
+    if (type === "Wolne") {
+        return "Rest Day";
+    }
+
     return type === "Legs" ? "Legs & Core" : type;
 }
 
@@ -334,9 +338,7 @@ function openDayModal(index) {
     const day = planDays[index];
     const isOff = day.type === "Wolne";
 
-    modalBadge.textContent = isOff
-        ? "Regeneracja"
-        : displayWorkoutLabel(day.type);
+    modalBadge.textContent = displayWorkoutLabel(day.type);
     modalBadge.classList.toggle("off", isOff);
     modalTitle.textContent = formatLongDate(day.dateObj);
     modalMeta.textContent = `Dzień ${index + 1} z ${planDays.length} • Tydzień ${Math.floor(index / 7) + 1}`;
@@ -441,6 +443,17 @@ function buildCancelJuneFirstIcsContent() {
     return `${lines.join("\r\n")}\r\n`;
 }
 
+function isIosSafari() {
+    const userAgent = navigator.userAgent;
+    const isAppleMobileDevice =
+        /iP(hone|ad|od)/.test(userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isWebKitBrowser = /WebKit/i.test(userAgent);
+    const isAltIosBrowser = /CriOS|FxiOS|EdgiOS|OPiOS/i.test(userAgent);
+
+    return isAppleMobileDevice && isWebKitBrowser && !isAltIosBrowser;
+}
+
 function downloadIcsText(content, fileName) {
     const blob = new Blob([content], {
         type: "text/calendar;charset=utf-8",
@@ -448,6 +461,17 @@ function downloadIcsText(content, fileName) {
 
     if (navigator.msSaveOrOpenBlob) {
         navigator.msSaveOrOpenBlob(blob, fileName);
+        return;
+    }
+
+    if (isIosSafari()) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (typeof reader.result === "string") {
+                window.location.href = reader.result;
+            }
+        };
+        reader.readAsDataURL(blob);
         return;
     }
 
