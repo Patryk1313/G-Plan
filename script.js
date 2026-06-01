@@ -9,7 +9,6 @@ const WORKOUT_ROTATION = [
     "Legs",
     "Wolne",
 ];
-const DAYS_TOTAL = 28;
 
 const triviaBank = [
     "Objętość treningowa (Volume) to całkowita liczba uniesionych kilogramów: serie x powtórzenia x ciężar. To jeden z głównych motorów hipertrofii.",
@@ -36,7 +35,12 @@ const triviaBank = [
 
 const calendarGrid = document.getElementById("calendarGrid");
 const calendarRange = document.getElementById("calendarRange");
+const recalcBtn = document.getElementById("recalcPlan");
 const downloadBtn = document.getElementById("downloadIcs");
+const planHelpToggle = document.getElementById("planHelpToggle");
+const planHelpPanel = document.getElementById("planHelpPanel");
+const planHelpClose = document.getElementById("planHelpClose");
+const planHelpWeeks = document.getElementById("planHelpWeeks");
 const themeToggle = document.getElementById("themeToggle");
 const modalBackdrop = document.getElementById("modalBackdrop");
 const modalClose = document.getElementById("modalClose");
@@ -46,11 +50,49 @@ const modalMeta = document.getElementById("modalMeta");
 const modalFact = document.getElementById("modalFact");
 const modalTimeBox = document.getElementById("modalTimeBox");
 const modalRestBox = document.getElementById("modalRestBox");
+const rescheduleBox = document.getElementById("rescheduleBox");
+const rescheduleButton = document.getElementById("rescheduleButton");
+const rescheduleStatus = document.getElementById("rescheduleStatus");
 const startTimeInput = document.getElementById("startTimeInput");
 const endTimeInput = document.getElementById("endTimeInput");
 
 const planDays = [];
 let selectedDayIndex = 0;
+let draggedDayIndex = null;
+
+function togglePlanHelp(forceOpen) {
+    const shouldOpen =
+        typeof forceOpen === "boolean"
+            ? forceOpen
+            : planHelpPanel.hasAttribute("hidden");
+
+    planHelpPanel.hidden = !shouldOpen;
+    planHelpToggle.setAttribute("aria-expanded", String(shouldOpen));
+}
+
+function renderPlanHelp() {
+    const totalWeeks = Math.min(4, Math.ceil(planDays.length / 7));
+    planHelpWeeks.innerHTML = "";
+
+    for (let weekIndex = 0; weekIndex < totalWeeks; weekIndex += 1) {
+        const weekDays = planDays.slice(weekIndex * 7, weekIndex * 7 + 7);
+        const weekItem = document.createElement("li");
+        weekItem.className = "plan-help-week";
+
+        const title = document.createElement("span");
+        title.className = "plan-help-week-title";
+        title.textContent = `Tydzień ${weekIndex + 1}`;
+
+        const description = document.createElement("span");
+        description.className = "plan-help-week-description";
+        description.textContent = weekDays
+            .map((day) => displayWorkoutLabel(day.type))
+            .join(" • ");
+
+        weekItem.append(title, description);
+        planHelpWeeks.appendChild(weekItem);
+    }
+}
 
 function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
@@ -118,13 +160,90 @@ function displayWorkoutLabel(type) {
     return type === "Legs" ? "Legs & Core" : type;
 }
 
-function generatePlan() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+function getCurrentMonthPlanInfo() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    monthStart.setHours(0, 0, 0, 0);
 
-    for (let i = 0; i < DAYS_TOTAL; i += 1) {
-        const dateObj = new Date(today);
-        dateObj.setDate(today.getDate() + i);
+    return {
+        monthStart,
+        totalDays: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
+    };
+}
+
+function getMondayFirstWeekday(dateObj) {
+    return (dateObj.getDay() + 6) % 7;
+}
+
+function findNextOffDayIndex(startIndex) {
+    for (let index = startIndex + 1; index < planDays.length; index += 1) {
+        if (planDays[index].type === "Wolne") {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+function moveWorkoutToNextOffDay(index) {
+    const sourceDay = planDays[index];
+    if (!sourceDay || sourceDay.type === "Wolne") {
+        return null;
+    }
+
+    const targetIndex = findNextOffDayIndex(index);
+    if (targetIndex === -1) {
+        return null;
+    }
+
+    const targetDay = planDays[targetIndex];
+    targetDay.type = sourceDay.type;
+    targetDay.startTime = sourceDay.startTime;
+    targetDay.endTime = sourceDay.endTime;
+
+    sourceDay.type = "Wolne";
+    sourceDay.startTime = "17:00";
+    sourceDay.endTime = "18:30";
+
+    return targetIndex;
+}
+
+function swapDayAssignments(sourceIndex, targetIndex) {
+    if (
+        sourceIndex === targetIndex ||
+        !planDays[sourceIndex] ||
+        !planDays[targetIndex]
+    ) {
+        return false;
+    }
+
+    const sourceDay = planDays[sourceIndex];
+    const targetDay = planDays[targetIndex];
+    const nextSource = {
+        type: targetDay.type,
+        startTime: targetDay.startTime,
+        endTime: targetDay.endTime,
+    };
+
+    targetDay.type = sourceDay.type;
+    targetDay.startTime = sourceDay.startTime;
+    targetDay.endTime = sourceDay.endTime;
+
+    sourceDay.type = nextSource.type;
+    sourceDay.startTime = nextSource.startTime;
+    sourceDay.endTime = nextSource.endTime;
+
+    return true;
+}
+
+function generatePlan() {
+    planDays.length = 0;
+
+    const { monthStart, totalDays } = getCurrentMonthPlanInfo();
+
+    for (let i = 0; i < totalDays; i += 1) {
+        const dateObj = new Date(monthStart);
+        dateObj.setDate(monthStart.getDate() + i);
 
         planDays.push({
             index: i,
@@ -137,14 +256,36 @@ function generatePlan() {
     }
 
     const monthFormat = new Intl.DateTimeFormat("pl-PL", {
-        day: "2-digit",
-        month: "short",
+        month: "long",
+        year: "numeric",
     });
-    calendarRange.textContent = `${monthFormat.format(planDays[0].dateObj)} - ${monthFormat.format(planDays[planDays.length - 1].dateObj)}`;
+    calendarRange.textContent = `${monthFormat.format(monthStart)} • ${totalDays} dni`;
+}
+
+function resetPlan() {
+    selectedDayIndex = 0;
+    generatePlan();
+    renderPlanHelp();
+    renderCalendar();
+
+    if (modalBackdrop.classList.contains("open")) {
+        openDayModal(selectedDayIndex);
+    }
 }
 
 function renderCalendar() {
     calendarGrid.innerHTML = "";
+
+    const leadingEmptyDays = planDays.length
+        ? getMondayFirstWeekday(planDays[0].dateObj)
+        : 0;
+
+    for (let index = 0; index < leadingEmptyDays; index += 1) {
+        const spacer = document.createElement("div");
+        spacer.className = "day-spacer";
+        spacer.setAttribute("aria-hidden", "true");
+        calendarGrid.appendChild(spacer);
+    }
 
     planDays.forEach((day, index) => {
         const btn = document.createElement("button");
@@ -153,6 +294,11 @@ function renderCalendar() {
         btn.type = "button";
         btn.className = `day-btn ${typeClass} ${isOff ? "" : "training"} ${index === selectedDayIndex ? "selected" : ""}`;
         btn.dataset.index = String(index);
+        btn.draggable = !isOff;
+        if (!isOff) {
+            btn.classList.add("draggable");
+            btn.title = "Przeciągnij trening na inny dzień";
+        }
         btn.setAttribute(
             "aria-label",
             `${formatLongDate(day.dateObj)} — ${displayWorkoutLabel(day.type)}`,
@@ -174,15 +320,19 @@ function openDayModal(index) {
         : displayWorkoutLabel(day.type);
     modalBadge.classList.toggle("off", isOff);
     modalTitle.textContent = formatLongDate(day.dateObj);
-    modalMeta.textContent = `Dzień ${index + 1} z 28 • Tydzień ${Math.floor(index / 7) + 1}`;
+    modalMeta.textContent = `Dzień ${index + 1} z ${planDays.length} • Tydzień ${Math.floor(index / 7) + 1}`;
     modalFact.textContent = randomFact();
+    rescheduleStatus.hidden = true;
+    rescheduleStatus.textContent = "";
 
     if (isOff) {
         modalTimeBox.hidden = true;
         modalRestBox.hidden = false;
+        rescheduleBox.hidden = true;
     } else {
         modalTimeBox.hidden = false;
         modalRestBox.hidden = true;
+        rescheduleBox.hidden = false;
         startTimeInput.value = day.startTime;
         endTimeInput.value = day.endTime;
     }
@@ -276,6 +426,116 @@ calendarGrid.addEventListener("click", (event) => {
     openDayModal(index);
 });
 
+planHelpToggle.addEventListener("click", () => {
+    togglePlanHelp();
+});
+
+planHelpClose.addEventListener("click", () => {
+    togglePlanHelp(false);
+});
+
+calendarGrid.addEventListener("dragstart", (event) => {
+    const target = event.target;
+    const button =
+        target instanceof HTMLElement ? target.closest(".day-btn") : null;
+    if (!button) {
+        return;
+    }
+
+    const index = Number(button.dataset.index);
+    if (
+        Number.isNaN(index) ||
+        !planDays[index] ||
+        planDays[index].type === "Wolne"
+    ) {
+        event.preventDefault();
+        return;
+    }
+
+    draggedDayIndex = index;
+    button.classList.add("dragging");
+
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(index));
+    }
+});
+
+calendarGrid.addEventListener("dragover", (event) => {
+    const target = event.target;
+    const button =
+        target instanceof HTMLElement ? target.closest(".day-btn") : null;
+    if (!button || draggedDayIndex === null) {
+        return;
+    }
+
+    event.preventDefault();
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+    }
+});
+
+calendarGrid.addEventListener("dragenter", (event) => {
+    const target = event.target;
+    const button =
+        target instanceof HTMLElement ? target.closest(".day-btn") : null;
+    if (!button || draggedDayIndex === null) {
+        return;
+    }
+
+    const index = Number(button.dataset.index);
+    if (!Number.isNaN(index) && index !== draggedDayIndex) {
+        button.classList.add("drop-target");
+    }
+});
+
+calendarGrid.addEventListener("dragleave", (event) => {
+    const target = event.target;
+    const button =
+        target instanceof HTMLElement ? target.closest(".day-btn") : null;
+    if (!button) {
+        return;
+    }
+
+    button.classList.remove("drop-target");
+});
+
+calendarGrid.addEventListener("drop", (event) => {
+    const target = event.target;
+    const button =
+        target instanceof HTMLElement ? target.closest(".day-btn") : null;
+    if (!button || draggedDayIndex === null) {
+        return;
+    }
+
+    event.preventDefault();
+
+    const targetIndex = Number(button.dataset.index);
+    button.classList.remove("drop-target");
+    if (Number.isNaN(targetIndex)) {
+        draggedDayIndex = null;
+        renderCalendar();
+        return;
+    }
+
+    const swapped = swapDayAssignments(draggedDayIndex, targetIndex);
+    const nextSelectedIndex = swapped ? targetIndex : selectedDayIndex;
+    draggedDayIndex = null;
+    selectedDayIndex = nextSelectedIndex;
+    renderCalendar();
+
+    if (modalBackdrop.classList.contains("open")) {
+        openDayModal(nextSelectedIndex);
+    }
+});
+
+calendarGrid.addEventListener("dragend", () => {
+    draggedDayIndex = null;
+    calendarGrid.querySelectorAll(".day-btn").forEach((button) => {
+        button.classList.remove("dragging", "drop-target");
+    });
+});
+
 modalClose.addEventListener("click", closeDayModal);
 modalBackdrop.addEventListener("click", (event) => {
     if (event.target === modalBackdrop) {
@@ -285,7 +545,24 @@ modalBackdrop.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+        if (!planHelpPanel.hidden) {
+            togglePlanHelp(false);
+        }
         closeDayModal();
+    }
+});
+
+document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Node) || planHelpPanel.hidden) {
+        return;
+    }
+
+    const clickedInsideHelp = planHelpPanel.contains(target);
+    const clickedToggle = planHelpToggle.contains(target);
+
+    if (!clickedInsideHelp && !clickedToggle) {
+        togglePlanHelp(false);
     }
 });
 
@@ -303,9 +580,28 @@ endTimeInput.addEventListener("input", () => {
     }
 });
 
+rescheduleButton.addEventListener("click", () => {
+    const movedToIndex = moveWorkoutToNextOffDay(selectedDayIndex);
+
+    if (movedToIndex === null) {
+        rescheduleStatus.hidden = false;
+        rescheduleStatus.textContent =
+            "Nie ma już kolejnego dnia OFF, na który można przenieść ten trening.";
+        return;
+    }
+
+    selectedDayIndex = movedToIndex;
+    renderCalendar();
+    openDayModal(movedToIndex);
+    rescheduleStatus.hidden = false;
+    rescheduleStatus.textContent = `Trening został przeniesiony na ${formatLongDate(planDays[movedToIndex].dateObj)}.`;
+});
+
+recalcBtn.addEventListener("click", resetPlan);
+
 downloadBtn.addEventListener("click", downloadIcsFile);
 
 initThemeToggle();
 generatePlan();
+renderPlanHelp();
 renderCalendar();
-openDayModal(0);

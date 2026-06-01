@@ -7,7 +7,9 @@
         <script>
             (function () {
                 const savedTheme = localStorage.getItem("gplan-theme");
-                const systemTheme = window.matchMedia("(prefers-color-scheme: light)").matches
+                const systemTheme = window.matchMedia(
+                    "(prefers-color-scheme: light)",
+                ).matches
                     ? "light"
                     : "dark";
                 document.documentElement.setAttribute(
@@ -16,9 +18,23 @@
                 );
             })();
         </script>
-        <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png" />
+        <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href="favicon_io/apple-touch-icon.png"
+        />
+        <link
+            rel="icon"
+            type="image/png"
+            sizes="32x32"
+            href="favicon_io/favicon-32x32.png"
+        />
+        <link
+            rel="icon"
+            type="image/png"
+            sizes="16x16"
+            href="favicon_io/favicon-16x16.png"
+        />
         <link rel="icon" href="favicon_io/favicon.ico" />
         <link rel="manifest" href="favicon_io/site.webmanifest" />
         <script src="https://cdn.tailwindcss.com"></script>
@@ -36,11 +52,33 @@
                 <div class="header-bar">
                     <div>
                         <p class="kicker">G-Plan</p>
-                        <h1>Kalendarz treningowy 4 tygodnie</h1>
-                        <p>
-                            Treningi są zaznaczone na kalendarzu. Kliknij dzień, aby
-                            zobaczyć szczegóły w małym pop-upie.
-                        </p>
+                        <h1>Kalendarz treningowy na aktualny miesiąc</h1>
+                        <div
+                            class="legend"
+                            aria-label="Legenda kolorów treningów"
+                        >
+                            <span class="legend-item">
+                                <span
+                                    class="legend-dot push"
+                                    aria-hidden="true"
+                                ></span>
+                                Push
+                            </span>
+                            <span class="legend-item">
+                                <span
+                                    class="legend-dot pull"
+                                    aria-hidden="true"
+                                ></span>
+                                Pull
+                            </span>
+                            <span class="legend-item">
+                                <span
+                                    class="legend-dot legs"
+                                    aria-hidden="true"
+                                ></span>
+                                Legs &amp; Core
+                            </span>
+                        </div>
                     </div>
                     <button
                         id="themeToggle"
@@ -59,6 +97,40 @@
                         <h2 class="calendar-title">Kalendarz</h2>
                         <p id="calendarRange" class="calendar-range"></p>
                     </div>
+                    <div class="calendar-tools">
+                        <button
+                            id="planHelpToggle"
+                            type="button"
+                            class="help-toggle"
+                            aria-expanded="false"
+                            aria-controls="planHelpPanel"
+                            aria-label="Pokaż opis generowania planu"
+                        >
+                            ?
+                        </button>
+                    </div>
+                </div>
+
+                <div id="planHelpPanel" class="plan-help" hidden>
+                    <div class="plan-help-head">
+                        <h3>Plan tygodni 1-4</h3>
+                        <button
+                            id="planHelpClose"
+                            type="button"
+                            class="plan-help-close"
+                            aria-label="Zamknij opis planu"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <p class="plan-help-copy">
+                        Stała rotacja 9-dniowa jest rozpisywana kolejno na cały
+                        miesiąc.
+                    </p>
+                    <ul id="planHelpWeeks" class="plan-help-weeks"></ul>
+                    <p class="plan-help-note">
+                        Dalej plan leci tym samym rytmem do końca miesiąca.
+                    </p>
                 </div>
 
                 <div class="weekdays" aria-hidden="true">
@@ -67,13 +139,18 @@
                 </div>
                 <div id="calendarGrid" class="grid"></div>
 
-                <button id="downloadIcs" type="button" class="main-action">
-                    Pobierz plik kalendarza (.ics)
-                </button>
-                <p class="hint">
-                    Dni treningowe mają pomarańczową kropkę. Dni wolne są
-                    wyszarzone.
-                </p>
+                <div class="action-group">
+                    <button
+                        id="recalcPlan"
+                        type="button"
+                        class="secondary-action"
+                    >
+                        ReCalc
+                    </button>
+                    <button id="downloadIcs" type="button" class="main-action">
+                        Załaduj do kalendarza
+                    </button>
+                </div>
             </section>
         </main>
 
@@ -128,6 +205,23 @@
                             Dzień OFF: regeneracja, sen, spacer i lekka
                             mobilność.
                         </p>
+                    </div>
+                    <div id="rescheduleBox" class="reschedule-box" hidden>
+                        <p class="reschedule-copy">
+                            Nie mogę być wtedy na treningu.
+                        </p>
+                        <button
+                            id="rescheduleButton"
+                            type="button"
+                            class="reschedule-button"
+                        >
+                            Przenieś trening
+                        </button>
+                        <p
+                            id="rescheduleStatus"
+                            class="reschedule-status"
+                            hidden
+                        ></p>
                     </div>
                     <div class="facts">
                         <h3>Ciekawostka treningowa</h3>
