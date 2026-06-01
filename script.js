@@ -9,6 +9,7 @@ const WORKOUT_ROTATION = [
     "Legs",
     "Wolne",
 ];
+const PLAN_STORAGE_KEY = "gplan-monthly-plan";
 
 const triviaBank = [
     "Objętość treningowa (Volume) to całkowita liczba uniesionych kilogramów: serie x powtórzenia x ciężar. To jeden z głównych motorów hipertrofii.",
@@ -59,6 +60,71 @@ const endTimeInput = document.getElementById("endTimeInput");
 const planDays = [];
 let selectedDayIndex = 0;
 let draggedDayIndex = null;
+
+function getCurrentMonthStorageKey() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function savePlanState() {
+    const payload = {
+        monthKey: getCurrentMonthStorageKey(),
+        selectedDayIndex,
+        planDays: planDays.map((day) => ({
+            type: day.type,
+            startTime: day.startTime,
+            endTime: day.endTime,
+        })),
+    };
+
+    localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload));
+}
+
+function restoreSavedPlanState() {
+    const savedRaw = localStorage.getItem(PLAN_STORAGE_KEY);
+    if (!savedRaw) {
+        return false;
+    }
+
+    try {
+        const savedState = JSON.parse(savedRaw);
+        const hasValidMonth =
+            savedState && savedState.monthKey === getCurrentMonthStorageKey();
+        const hasValidDays =
+            Array.isArray(savedState?.planDays) &&
+            savedState.planDays.length === planDays.length;
+
+        if (!hasValidMonth || !hasValidDays) {
+            localStorage.removeItem(PLAN_STORAGE_KEY);
+            return false;
+        }
+
+        planDays.forEach((day, index) => {
+            const savedDay = savedState.planDays[index];
+            if (!savedDay) {
+                return;
+            }
+
+            day.type =
+                typeof savedDay.type === "string" ? savedDay.type : day.type;
+            day.startTime = normalizeTime(savedDay.startTime, "17:00");
+            day.endTime = normalizeTime(savedDay.endTime, "18:30");
+        });
+
+        const restoredIndex = Number(savedState.selectedDayIndex);
+        selectedDayIndex =
+            Number.isInteger(restoredIndex) &&
+            restoredIndex >= 0 &&
+            restoredIndex < planDays.length
+                ? restoredIndex
+                : 0;
+
+        return true;
+    } catch {
+        localStorage.removeItem(PLAN_STORAGE_KEY);
+        return false;
+    }
+}
 
 function togglePlanHelp(forceOpen) {
     const shouldOpen =
@@ -248,6 +314,7 @@ function generatePlan() {
 function resetPlan() {
     selectedDayIndex = 0;
     generatePlan();
+    savePlanState();
     renderPlanHelp();
     renderCalendar();
     updateCancelPlanButton();
@@ -636,6 +703,9 @@ calendarGrid.addEventListener("drop", (event) => {
     const nextSelectedIndex = swapped ? targetIndex : selectedDayIndex;
     draggedDayIndex = null;
     selectedDayIndex = nextSelectedIndex;
+    if (swapped) {
+        savePlanState();
+    }
     renderCalendar();
     updateCancelPlanButton();
 
@@ -685,6 +755,7 @@ startTimeInput.addEventListener("input", () => {
     const day = planDays[selectedDayIndex];
     if (day && day.type !== "Wolne") {
         day.startTime = normalizeTime(startTimeInput.value, "17:00");
+        savePlanState();
     }
 });
 
@@ -692,6 +763,7 @@ endTimeInput.addEventListener("input", () => {
     const day = planDays[selectedDayIndex];
     if (day && day.type !== "Wolne") {
         day.endTime = normalizeTime(endTimeInput.value, "18:30");
+        savePlanState();
     }
 });
 
@@ -703,6 +775,9 @@ downloadBtn.addEventListener("click", downloadIcsFile);
 
 initThemeToggle();
 generatePlan();
+if (!restoreSavedPlanState()) {
+    savePlanState();
+}
 renderPlanHelp();
 renderCalendar();
 updateCancelPlanButton();
