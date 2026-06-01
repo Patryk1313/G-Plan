@@ -1,75 +1,113 @@
 <!doctype html>
 <html lang="pl">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>G-Plan | Kalendarz Treningowy</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <main class="app">
-      <header class="header">
-        <p class="kicker">G-Plan</p>
-        <h1>Kalendarz treningowy 4 tygodnie</h1>
-        <p>Treningi są zaznaczone na kalendarzu. Kliknij dzień, aby zobaczyć szczegóły w małym pop-upie.</p>
-      </header>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>G-Plan | Kalendarz Treningowy</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <main class="app">
+            <header class="header">
+                <p class="kicker">G-Plan</p>
+                <h1>Kalendarz treningowy 4 tygodnie</h1>
+                <p>
+                    Treningi są zaznaczone na kalendarzu. Kliknij dzień, aby
+                    zobaczyć szczegóły w małym pop-upie.
+                </p>
+            </header>
 
-      <section class="card calendar-card">
-        <div class="calendar-top">
-          <div>
-            <h2 class="calendar-title">Kalendarz</h2>
-            <p id="calendarRange" class="calendar-range"></p>
-          </div>
-        </div>
+            <section class="card calendar-card">
+                <div class="calendar-top">
+                    <div>
+                        <h2 class="calendar-title">Kalendarz</h2>
+                        <p id="calendarRange" class="calendar-range"></p>
+                    </div>
+                </div>
 
-        <div class="weekdays" aria-hidden="true">
-          <span>Pn</span><span>Wt</span><span>Sr</span><span>Cz</span><span>Pt</span><span>So</span><span>Nd</span>
-        </div>
-        <div id="calendarGrid" class="grid"></div>
+                <div class="weekdays" aria-hidden="true">
+                    <span>Pn</span><span>Wt</span><span>Sr</span><span>Cz</span
+                    ><span>Pt</span><span>So</span><span>Nd</span>
+                </div>
+                <div id="calendarGrid" class="grid"></div>
 
-        <button id="downloadIcs" type="button" class="main-action">Pobierz plik kalendarza (.ics)</button>
-        <p class="hint">Dni treningowe mają pomarańczową kropkę. Dni wolne są wyszarzone.</p>
-      </section>
-    </main>
+                <button id="downloadIcs" type="button" class="main-action">
+                    Pobierz plik kalendarza (.ics)
+                </button>
+                <p class="hint">
+                    Dni treningowe mają pomarańczową kropkę. Dni wolne są
+                    wyszarzone.
+                </p>
+            </section>
+        </main>
 
-    <div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-      <div class="modal">
-        <div class="modal-head">
-          <div>
-            <span id="modalBadge" class="badge">Push</span>
-            <h2 id="modalTitle"></h2>
-          </div>
-          <button id="modalClose" type="button" class="modal-close" aria-label="Zamknij">×</button>
-        </div>
-        <div class="modal-body">
-          <p id="modalMeta" class="modal-meta"></p>
-          <div id="modalTimeBox" class="time-box">
-            <div class="time-grid">
-              <label>
-                Godzina rozpoczęcia
-                <input id="startTimeInput" type="time" class="time-input" value="17:00" />
-              </label>
-              <label>
-                Godzina zakończenia
-                <input id="endTimeInput" type="time" class="time-input" value="18:30" />
-              </label>
+        <div
+            id="modalBackdrop"
+            class="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+        >
+            <div class="modal">
+                <div class="modal-head">
+                    <div>
+                        <span id="modalBadge" class="badge">Push</span>
+                        <h2 id="modalTitle"></h2>
+                    </div>
+                    <button
+                        id="modalClose"
+                        type="button"
+                        class="modal-close"
+                        aria-label="Zamknij"
+                    >
+                        ×
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="modalMeta" class="modal-meta"></p>
+                    <div id="modalTimeBox" class="time-box">
+                        <div class="time-grid">
+                            <label>
+                                Godzina rozpoczęcia
+                                <input
+                                    id="startTimeInput"
+                                    type="time"
+                                    class="time-input"
+                                    value="17:00"
+                                />
+                            </label>
+                            <label>
+                                Godzina zakończenia
+                                <input
+                                    id="endTimeInput"
+                                    type="time"
+                                    class="time-input"
+                                    value="18:30"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                    <div id="modalRestBox" class="rest-box" hidden>
+                        <p>
+                            Dzień OFF: regeneracja, sen, spacer i lekka
+                            mobilność.
+                        </p>
+                    </div>
+                    <div class="facts">
+                        <h3>Ciekawostka treningowa</h3>
+                        <p id="modalFact"></p>
+                    </div>
+                </div>
             </div>
-          </div>
-          <div id="modalRestBox" class="rest-box" hidden>
-            <p>Dzień OFF: regeneracja, sen, spacer i lekka mobilność.</p>
-          </div>
-          <div class="facts">
-            <h3>Ciekawostka treningowa</h3>
-            <p id="modalFact"></p>
-          </div>
         </div>
-      </div>
-    </div>
 
-    <script src="script.js"></script>
-  </body>
+        <script src="script.js"></script>
+    </body>
 </html>
