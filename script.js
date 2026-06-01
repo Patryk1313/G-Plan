@@ -36,6 +36,7 @@ const triviaBank = [
 const calendarGrid = document.getElementById("calendarGrid");
 const calendarRange = document.getElementById("calendarRange");
 const recalcBtn = document.getElementById("recalcPlan");
+const cancelJuneFirstBtn = document.getElementById("cancelJuneFirst");
 const downloadBtn = document.getElementById("downloadIcs");
 const planHelpToggle = document.getElementById("planHelpToggle");
 const planHelpPanel = document.getElementById("planHelpPanel");
@@ -175,6 +176,23 @@ function getMondayFirstWeekday(dateObj) {
     return (dateObj.getDay() + 6) % 7;
 }
 
+function getFirstDayPlanEntry() {
+    const { monthStart } = getCurrentMonthPlanInfo();
+    return (
+        planDays.find((day) => day.isoDate === formatDateForIcs(monthStart)) ||
+        null
+    );
+}
+
+function updateCancelJuneFirstButton() {
+    const day = getFirstDayPlanEntry();
+    const canCancel = Boolean(day && day.type !== "Wolne");
+    cancelJuneFirstBtn.disabled = !canCancel;
+    cancelJuneFirstBtn.title = canCancel
+        ? "Pobierz plik anulujący wydarzenie z 1 czerwca"
+        : "Na 1 czerwca nie ma obecnie treningu do anulowania";
+}
+
 function findNextOffDayIndex(startIndex) {
     for (let index = startIndex + 1; index < planDays.length; index += 1) {
         if (planDays[index].type === "Wolne") {
@@ -267,6 +285,7 @@ function resetPlan() {
     generatePlan();
     renderPlanHelp();
     renderCalendar();
+    updateCancelJuneFirstButton();
 
     if (modalBackdrop.classList.contains("open")) {
         openDayModal(selectedDayIndex);
@@ -386,20 +405,56 @@ function buildIcsContent() {
     return `${lines.join("\r\n")}\r\n`;
 }
 
-function downloadIcsFile() {
-    const blob = new Blob([buildIcsContent()], {
+function buildCancelJuneFirstIcsContent() {
+    const day = getFirstDayPlanEntry();
+    if (!day || day.type === "Wolne") {
+        return null;
+    }
+
+    const now = new Date();
+    const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}T${String(now.getUTCHours()).padStart(2, "0")}${String(now.getUTCMinutes()).padStart(2, "0")}${String(now.getUTCSeconds()).padStart(2, "0")}Z`;
+    const start = normalizeTime(day.startTime, "17:00");
+    const end = normalizeTime(day.endTime, "18:30");
+    const startIcs = `${day.isoDate}T${start.replace(":", "")}00`;
+    const endIcs = `${day.isoDate}T${end.replace(":", "")}00`;
+    const dayIndex = planDays.indexOf(day);
+
+    const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//G-Plan//Training Calendar//PL",
+        "CALSCALE:GREGORIAN",
+        "METHOD:CANCEL",
+        "BEGIN:VEVENT",
+        `UID:${uidFromDay(day, dayIndex)}`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${startIcs}`,
+        `DTEND:${endIcs}`,
+        "SEQUENCE:1",
+        "STATUS:CANCELLED",
+        `SUMMARY:${escapeIcsText(`Siłownia - ${displayWorkoutLabel(day.type)}`)}`,
+        `DESCRIPTION:${escapeIcsText("Próba anulowania wydarzenia z 1 czerwca wygenerowana przez G-Plan.")}`,
+        "END:VEVENT",
+        "END:VCALENDAR",
+    ];
+
+    return `${lines.join("\r\n")}\r\n`;
+}
+
+function downloadIcsText(content, fileName) {
+    const blob = new Blob([content], {
         type: "text/calendar;charset=utf-8",
     });
 
     if (navigator.msSaveOrOpenBlob) {
-        navigator.msSaveOrOpenBlob(blob, "g-plan-4-tygodnie.ics");
+        navigator.msSaveOrOpenBlob(blob, fileName);
         return;
     }
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "g-plan-4-tygodnie.ics";
+    link.download = fileName;
     link.style.display = "none";
     document.body.appendChild(link);
     link.click();
@@ -408,6 +463,20 @@ function downloadIcsFile() {
         URL.revokeObjectURL(url);
         link.remove();
     }, 120);
+}
+
+function downloadIcsFile() {
+    downloadIcsText(buildIcsContent(), "g-plan-aktualny-miesiac.ics");
+}
+
+function downloadCancelJuneFirstFile() {
+    const content = buildCancelJuneFirstIcsContent();
+    if (!content) {
+        updateCancelJuneFirstButton();
+        return;
+    }
+
+    downloadIcsText(content, "g-plan-anuluj-1-czerwca.ics");
 }
 
 calendarGrid.addEventListener("click", (event) => {
@@ -523,6 +592,7 @@ calendarGrid.addEventListener("drop", (event) => {
     draggedDayIndex = null;
     selectedDayIndex = nextSelectedIndex;
     renderCalendar();
+    updateCancelJuneFirstButton();
 
     if (modalBackdrop.classList.contains("open")) {
         openDayModal(nextSelectedIndex);
@@ -598,6 +668,7 @@ rescheduleButton.addEventListener("click", () => {
 });
 
 recalcBtn.addEventListener("click", resetPlan);
+cancelJuneFirstBtn.addEventListener("click", downloadCancelJuneFirstFile);
 
 downloadBtn.addEventListener("click", downloadIcsFile);
 
@@ -605,3 +676,4 @@ initThemeToggle();
 generatePlan();
 renderPlanHelp();
 renderCalendar();
+updateCancelJuneFirstButton();

@@ -489,6 +489,36 @@ body {
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
 }
 
+.tiny-action {
+    justify-self: start;
+    width: auto;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 0.5rem 0.8rem;
+    cursor: pointer;
+    transition:
+        color 160ms ease,
+        border-color 160ms ease,
+        background-color 160ms ease;
+}
+
+.tiny-action:hover {
+    color: var(--text);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tiny-action:disabled {
+    opacity: 0.46;
+    cursor: not-allowed;
+}
+
 .main-action:hover {
     transform: translateY(-1px);
     border-color: rgba(255, 255, 255, 0.22);
@@ -507,6 +537,17 @@ body {
     background: rgba(24, 33, 43, 0.04);
     color: #1b2632;
     border-color: rgba(24, 33, 43, 0.1);
+}
+
+:root[data-theme="light"] .tiny-action {
+    color: #607080;
+    border-color: rgba(24, 33, 43, 0.1);
+}
+
+:root[data-theme="light"] .tiny-action:hover {
+    color: #1b2632;
+    border-color: rgba(24, 33, 43, 0.16);
+    background: rgba(24, 33, 43, 0.04);
 }
 
 :root[data-theme="light"] .secondary-action:hover {
