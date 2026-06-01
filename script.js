@@ -37,6 +37,7 @@ const triviaBank = [
 const calendarGrid = document.getElementById("calendarGrid");
 const calendarRange = document.getElementById("calendarRange");
 const downloadBtn = document.getElementById("downloadIcs");
+const themeToggle = document.getElementById("themeToggle");
 const modalBackdrop = document.getElementById("modalBackdrop");
 const modalClose = document.getElementById("modalClose");
 const modalBadge = document.getElementById("modalBadge");
@@ -50,6 +51,28 @@ const endTimeInput = document.getElementById("endTimeInput");
 
 const planDays = [];
 let selectedDayIndex = 0;
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("gplan-theme", theme);
+    themeToggle.setAttribute("aria-pressed", String(theme === "light"));
+    themeToggle.querySelector(".theme-toggle-label").textContent =
+        theme === "light" ? "Tryb ciemny" : "Tryb jasny";
+}
+
+function initThemeToggle() {
+    const currentTheme =
+        document.documentElement.getAttribute("data-theme") || "dark";
+    applyTheme(currentTheme);
+
+    themeToggle.addEventListener("click", () => {
+        const nextTheme =
+            document.documentElement.getAttribute("data-theme") === "light"
+                ? "dark"
+                : "light";
+        applyTheme(nextTheme);
+    });
+}
 
 function formatLongDate(dateObj) {
     return new Intl.DateTimeFormat("pl-PL", {
@@ -282,6 +305,7 @@ endTimeInput.addEventListener("input", () => {
 
 downloadBtn.addEventListener("click", downloadIcsFile);
 
+initThemeToggle();
 generatePlan();
 renderCalendar();
 openDayModal(0);
