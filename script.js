@@ -51,9 +51,8 @@ const modalMeta = document.getElementById("modalMeta");
 const modalFact = document.getElementById("modalFact");
 const modalTimeBox = document.getElementById("modalTimeBox");
 const modalRestBox = document.getElementById("modalRestBox");
-const rescheduleBox = document.getElementById("rescheduleBox");
-const rescheduleButton = document.getElementById("rescheduleButton");
-const rescheduleStatus = document.getElementById("rescheduleStatus");
+const singleDayExportBox = document.getElementById("singleDayExportBox");
+const downloadDayIcsBtn = document.getElementById("downloadDayIcs");
 const startTimeInput = document.getElementById("startTimeInput");
 const endTimeInput = document.getElementById("endTimeInput");
 
@@ -192,39 +191,6 @@ function updateCancelPlanButton() {
         : "W aktualnym planie nie ma treningów do anulowania";
 }
 
-function findNextOffDayIndex(startIndex) {
-    for (let index = startIndex + 1; index < planDays.length; index += 1) {
-        if (planDays[index].type === "Wolne") {
-            return index;
-        }
-    }
-
-    return -1;
-}
-
-function moveWorkoutToNextOffDay(index) {
-    const sourceDay = planDays[index];
-    if (!sourceDay || sourceDay.type === "Wolne") {
-        return null;
-    }
-
-    const targetIndex = findNextOffDayIndex(index);
-    if (targetIndex === -1) {
-        return null;
-    }
-
-    const targetDay = planDays[targetIndex];
-    targetDay.type = sourceDay.type;
-    targetDay.startTime = sourceDay.startTime;
-    targetDay.endTime = sourceDay.endTime;
-
-    sourceDay.type = "Wolne";
-    sourceDay.startTime = "17:00";
-    sourceDay.endTime = "18:30";
-
-    return targetIndex;
-}
-
 function swapDayAssignments(sourceIndex, targetIndex) {
     if (
         sourceIndex === targetIndex ||
@@ -338,17 +304,15 @@ function openDayModal(index) {
     modalTitle.textContent = formatLongDate(day.dateObj);
     modalMeta.textContent = `Dzień ${index + 1} z ${planDays.length} • Tydzień ${Math.floor(index / 7) + 1}`;
     modalFact.textContent = randomFact();
-    rescheduleStatus.hidden = true;
-    rescheduleStatus.textContent = "";
 
     if (isOff) {
         modalTimeBox.hidden = true;
         modalRestBox.hidden = false;
-        rescheduleBox.hidden = true;
+        singleDayExportBox.hidden = true;
     } else {
         modalTimeBox.hidden = false;
         modalRestBox.hidden = true;
-        rescheduleBox.hidden = false;
+        singleDayExportBox.hidden = false;
         startTimeInput.value = day.startTime;
         endTimeInput.value = day.endTime;
     }
@@ -399,6 +363,39 @@ function buildIcsContent() {
     });
 
     lines.push("END:VCALENDAR");
+    return `${lines.join("\r\n")}\r\n`;
+}
+
+function buildSingleDayIcsContent(index) {
+    const day = planDays[index];
+    if (!day || day.type === "Wolne") {
+        return null;
+    }
+
+    const now = new Date();
+    const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}T${String(now.getUTCHours()).padStart(2, "0")}${String(now.getUTCMinutes()).padStart(2, "0")}${String(now.getUTCSeconds()).padStart(2, "0")}Z`;
+    const start = normalizeTime(day.startTime, "17:00");
+    const end = normalizeTime(day.endTime, "18:30");
+    const startIcs = `${day.isoDate}T${start.replace(":", "")}00`;
+    const endIcs = `${day.isoDate}T${end.replace(":", "")}00`;
+
+    const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//G-Plan//Training Calendar//PL",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        `UID:${uidFromDay(day, index)}`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${startIcs}`,
+        `DTEND:${endIcs}`,
+        `SUMMARY:${escapeIcsText(`Siłownia - ${displayWorkoutLabel(day.type)}`)}`,
+        `DESCRIPTION:${escapeIcsText(`Eksport pojedynczego treningu z G-Plan.\n${formatLongDate(day.dateObj)}`)}`,
+        "END:VEVENT",
+        "END:VCALENDAR",
+    ];
+
     return `${lines.join("\r\n")}\r\n`;
 }
 
@@ -506,6 +503,25 @@ function downloadCancelPlanFile() {
     }
 
     downloadIcsText(content, "g-plan-anuluj-caly-plan.ics");
+}
+
+function downloadSingleDayIcsFile() {
+    const content = buildSingleDayIcsContent(selectedDayIndex);
+    if (!content) {
+        return;
+    }
+
+    const day = planDays[selectedDayIndex];
+    const workoutSlug = displayWorkoutLabel(day.type)
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+    downloadIcsText(
+        content,
+        `g-plan-${day.isoDate}-${workoutSlug || "trening"}.ics`,
+    );
 }
 
 calendarGrid.addEventListener("click", (event) => {
@@ -679,25 +695,9 @@ endTimeInput.addEventListener("input", () => {
     }
 });
 
-rescheduleButton.addEventListener("click", () => {
-    const movedToIndex = moveWorkoutToNextOffDay(selectedDayIndex);
-
-    if (movedToIndex === null) {
-        rescheduleStatus.hidden = false;
-        rescheduleStatus.textContent =
-            "Nie ma już kolejnego dnia OFF, na który można przenieść ten trening.";
-        return;
-    }
-
-    selectedDayIndex = movedToIndex;
-    renderCalendar();
-    openDayModal(movedToIndex);
-    rescheduleStatus.hidden = false;
-    rescheduleStatus.textContent = `Trening został przeniesiony na ${formatLongDate(planDays[movedToIndex].dateObj)}.`;
-});
-
 recalcBtn.addEventListener("click", resetPlan);
 cancelPlanBtn.addEventListener("click", downloadCancelPlanFile);
+downloadDayIcsBtn.addEventListener("click", downloadSingleDayIcsFile);
 
 downloadBtn.addEventListener("click", downloadIcsFile);
 

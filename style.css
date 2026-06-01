@@ -711,29 +711,21 @@ body {
     line-height: 1.45;
 }
 
-.reschedule-box {
+.single-day-export {
     margin-top: 1rem;
-    padding: 0.95rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: var(--panel-soft);
 }
 
-.reschedule-copy {
-    margin: 0 0 0.75rem;
-    color: var(--muted);
-    font-size: 0.92rem;
-}
-
-.reschedule-button {
+.single-day-export-button {
     width: 100%;
-    border-radius: 0.82rem;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0.92rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
     color: var(--text);
     font: inherit;
     font-weight: 800;
-    padding: 0.88rem 0.95rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.95rem 1rem;
     cursor: pointer;
     transition:
         transform 160ms ease,
@@ -742,27 +734,20 @@ body {
         box-shadow 160ms ease;
 }
 
-.reschedule-button:hover {
+.single-day-export-button:hover {
     transform: translateY(-1px);
-    border-color: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.22);
     background: rgba(255, 255, 255, 0.07);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
 }
 
-.reschedule-status {
-    margin: 0.7rem 0 0;
-    color: var(--muted);
-    font-size: 0.84rem;
-    line-height: 1.4;
-}
-
-:root[data-theme="light"] .reschedule-button {
+:root[data-theme="light"] .single-day-export-button {
     background: rgba(24, 33, 43, 0.04);
     border-color: rgba(24, 33, 43, 0.1);
     color: #1b2632;
 }
 
-:root[data-theme="light"] .reschedule-button:hover {
+:root[data-theme="light"] .single-day-export-button:hover {
     background: rgba(24, 33, 43, 0.06);
     border-color: rgba(24, 33, 43, 0.16);
     box-shadow: 0 12px 24px rgba(33, 44, 56, 0.08);
@@ -790,9 +775,7 @@ body {
 }
 
 :root[data-theme="light"] .facts p,
-:root[data-theme="light"] .rest-box p,
-:root[data-theme="light"] .reschedule-copy,
-:root[data-theme="light"] .reschedule-status {
+:root[data-theme="light"] .rest-box p {
     color: #324150;
 }
 
