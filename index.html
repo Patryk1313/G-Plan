@@ -147,9 +147,6 @@
                     >
                         ReCalc
                     </button>
-                    <button id="cancelPlan" type="button" class="tiny-action">
-                        Spróbuj anulować cały plan
-                    </button>
                     <button id="downloadIcs" type="button" class="main-action">
                         Załaduj do kalendarza
                     </button>
@@ -214,13 +211,22 @@
                         class="single-day-export"
                         hidden
                     >
-                        <button
-                            id="downloadDayIcs"
-                            type="button"
-                            class="single-day-export-button"
-                        >
-                            Dodaj tylko ten trening
-                        </button>
+                        <div class="single-day-actions">
+                            <button
+                                id="downloadDayIcs"
+                                type="button"
+                                class="single-day-export-button"
+                            >
+                                Dodaj tylko ten trening
+                            </button>
+                            <button
+                                id="deleteDayEntry"
+                                type="button"
+                                class="single-day-delete-button"
+                            >
+                                Usuń ten wpis
+                            </button>
+                        </div>
                     </div>
                     <div class="facts">
                         <h3>Ciekawostka treningowa</h3>
@@ -230,6 +236,10 @@
             </div>
         </div>
 
+        <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+        <script src="firebase-config.js"></script>
         <script src="script.js"></script>
     </body>
 </html>

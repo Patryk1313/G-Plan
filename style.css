@@ -362,6 +362,12 @@ body {
         border-color 160ms ease,
         background-color 160ms ease,
         box-shadow 160ms ease;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 0.6rem 0.7rem;
+    text-align: left;
 }
 
 :root[data-theme="light"] .day-btn {
@@ -437,6 +443,33 @@ body {
     box-shadow: inset 0 0 0 1px rgba(255, 91, 46, 0.5);
 }
 
+.day-btn.today {
+    border-color: rgba(45, 226, 230, 0.5);
+    box-shadow:
+        inset 0 0 0 1px rgba(45, 226, 230, 0.28),
+        0 0 0 1px rgba(45, 226, 230, 0.12);
+}
+
+.day-number {
+    font-size: 1.08rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.day-label {
+    margin-top: 0.38rem;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.82;
+}
+
+.day-btn.off .day-label {
+    opacity: 0.72;
+}
+
 .action-group {
     display: grid;
     gap: 0.8rem;
@@ -489,36 +522,6 @@ body {
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
 }
 
-.tiny-action {
-    justify-self: start;
-    width: auto;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    padding: 0.5rem 0.8rem;
-    cursor: pointer;
-    transition:
-        color 160ms ease,
-        border-color 160ms ease,
-        background-color 160ms ease;
-}
-
-.tiny-action:hover {
-    color: var(--text);
-    border-color: rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.tiny-action:disabled {
-    opacity: 0.46;
-    cursor: not-allowed;
-}
-
 .main-action:hover {
     transform: translateY(-1px);
     border-color: rgba(255, 255, 255, 0.22);
@@ -537,17 +540,6 @@ body {
     background: rgba(24, 33, 43, 0.04);
     color: #1b2632;
     border-color: rgba(24, 33, 43, 0.1);
-}
-
-:root[data-theme="light"] .tiny-action {
-    color: #607080;
-    border-color: rgba(24, 33, 43, 0.1);
-}
-
-:root[data-theme="light"] .tiny-action:hover {
-    color: #1b2632;
-    border-color: rgba(24, 33, 43, 0.16);
-    background: rgba(24, 33, 43, 0.04);
 }
 
 :root[data-theme="light"] .secondary-action:hover {
@@ -715,6 +707,11 @@ body {
     margin-top: 1rem;
 }
 
+.single-day-actions {
+    display: grid;
+    gap: 0.7rem;
+}
+
 .single-day-export-button {
     width: 100%;
     border-radius: 0.92rem;
@@ -741,6 +738,32 @@ body {
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
 }
 
+.single-day-delete-button {
+    width: 100%;
+    border-radius: 0.92rem;
+    border: 1px solid rgba(255, 91, 46, 0.18);
+    background: rgba(255, 91, 46, 0.08);
+    color: #ffd2c7;
+    font: inherit;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.95rem 1rem;
+    cursor: pointer;
+    transition:
+        transform 160ms ease,
+        border-color 160ms ease,
+        background-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.single-day-delete-button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 91, 46, 0.3);
+    background: rgba(255, 91, 46, 0.12);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+}
+
 :root[data-theme="light"] .single-day-export-button {
     background: rgba(24, 33, 43, 0.04);
     border-color: rgba(24, 33, 43, 0.1);
@@ -750,6 +773,18 @@ body {
 :root[data-theme="light"] .single-day-export-button:hover {
     background: rgba(24, 33, 43, 0.06);
     border-color: rgba(24, 33, 43, 0.16);
+    box-shadow: 0 12px 24px rgba(33, 44, 56, 0.08);
+}
+
+:root[data-theme="light"] .single-day-delete-button {
+    background: rgba(255, 91, 46, 0.08);
+    border-color: rgba(255, 91, 46, 0.16);
+    color: #9b3d21;
+}
+
+:root[data-theme="light"] .single-day-delete-button:hover {
+    background: rgba(255, 91, 46, 0.12);
+    border-color: rgba(255, 91, 46, 0.24);
     box-shadow: 0 12px 24px rgba(33, 44, 56, 0.08);
 }
 
@@ -819,6 +854,15 @@ body {
     .day-btn {
         min-height: 3.7rem;
         font-size: 0.98rem;
+        padding: 0.55rem 0.6rem;
+    }
+
+    .day-number {
+        font-size: 0.98rem;
+    }
+
+    .day-label {
+        font-size: 0.62rem;
     }
 
     .day-spacer {

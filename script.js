@@ -10,6 +10,7 @@ const WORKOUT_ROTATION = [
     "Wolne",
 ];
 const PLAN_STORAGE_KEY = "gplan-monthly-plan";
+const THEME_STORAGE_KEY = "gplan-theme";
 
 const triviaBank = [
     "Objętość treningowa (Volume) to całkowita liczba uniesionych kilogramów: serie x powtórzenia x ciężar. To jeden z głównych motorów hipertrofii.",
@@ -34,10 +35,18 @@ const triviaBank = [
     "Regeneracja aktywna, spacer i lekka mobilność w dni OFF mogą poprawić samopoczucie bez przeciążania organizmu.",
 ];
 
+const firebaseSettings = window.GPLAN_FIREBASE || {};
+const hasFirebaseConfig = Boolean(
+    firebaseSettings.enabled &&
+        firebaseSettings.config &&
+        firebaseSettings.config.apiKey &&
+        firebaseSettings.config.projectId &&
+        window.firebase,
+);
+
 const calendarGrid = document.getElementById("calendarGrid");
 const calendarRange = document.getElementById("calendarRange");
 const recalcBtn = document.getElementById("recalcPlan");
-const cancelPlanBtn = document.getElementById("cancelPlan");
 const downloadBtn = document.getElementById("downloadIcs");
 const planHelpToggle = document.getElementById("planHelpToggle");
 const planHelpPanel = document.getElementById("planHelpPanel");
@@ -54,76 +63,178 @@ const modalTimeBox = document.getElementById("modalTimeBox");
 const modalRestBox = document.getElementById("modalRestBox");
 const singleDayExportBox = document.getElementById("singleDayExportBox");
 const downloadDayIcsBtn = document.getElementById("downloadDayIcs");
+const deleteDayEntryBtn = document.getElementById("deleteDayEntry");
 const startTimeInput = document.getElementById("startTimeInput");
 const endTimeInput = document.getElementById("endTimeInput");
 
 const planDays = [];
 let selectedDayIndex = 0;
 let draggedDayIndex = null;
+let remoteStateDoc = null;
+let remoteSyncTimer = null;
+let remoteReady = false;
+let applyingRemoteState = false;
 
 function getCurrentMonthStorageKey() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function savePlanState() {
-    const payload = {
+function normalizeTime(value, fallback) {
+    return !value || !/^\d{2}:\d{2}$/.test(value) ? fallback : value;
+}
+
+function formatLongDate(dateObj) {
+    return new Intl.DateTimeFormat("pl-PL", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    }).format(dateObj);
+}
+
+function formatDateForIcs(dateObj) {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    return `${year}${month}${day}`;
+}
+
+function escapeIcsText(raw) {
+    return raw
+        .replace(/\\/g, "\\\\")
+        .replace(/;/g, "\\;")
+        .replace(/,/g, "\\,")
+        .replace(/\n/g, "\\n");
+}
+
+function uidFromDay(dayPlan, index) {
+    const stamp = `${dayPlan.isoDate}-${index}-${dayPlan.type}`.replace(
+        /[^0-9A-Za-z-]/g,
+        "",
+    );
+    return `${stamp}@g-plan.local`;
+}
+
+function randomFact() {
+    return triviaBank[Math.floor(Math.random() * triviaBank.length)];
+}
+
+function displayWorkoutLabel(type) {
+    if (type === "Wolne") {
+        return "Rest Day";
+    }
+
+    return type === "Legs" ? "Legs & Core" : type;
+}
+
+function isValidSavedState(savedState) {
+    const hasValidMonth =
+        savedState && savedState.monthKey === getCurrentMonthStorageKey();
+    const hasValidDays =
+        Array.isArray(savedState?.planDays) &&
+        savedState.planDays.length === planDays.length;
+
+    return hasValidMonth && hasValidDays;
+}
+
+function applySavedState(savedState) {
+    if (!isValidSavedState(savedState)) {
+        return false;
+    }
+
+    planDays.forEach((day, index) => {
+        const savedDay = savedState.planDays[index];
+        if (!savedDay) {
+            return;
+        }
+
+        day.type = typeof savedDay.type === "string" ? savedDay.type : day.type;
+        day.startTime = normalizeTime(savedDay.startTime, "17:00");
+        day.endTime = normalizeTime(savedDay.endTime, "18:30");
+    });
+
+    const restoredIndex = Number(savedState.selectedDayIndex);
+    selectedDayIndex =
+        Number.isInteger(restoredIndex) &&
+        restoredIndex >= 0 &&
+        restoredIndex < planDays.length
+            ? restoredIndex
+            : 0;
+
+    return true;
+}
+
+function createPlanStatePayload() {
+    return {
         monthKey: getCurrentMonthStorageKey(),
         selectedDayIndex,
+        updatedAt: Date.now(),
         planDays: planDays.map((day) => ({
             type: day.type,
             startTime: day.startTime,
             endTime: day.endTime,
         })),
     };
+}
 
+function getRemotePayload() {
+    return {
+        theme: document.documentElement.getAttribute("data-theme") || "dark",
+        planState: createPlanStatePayload(),
+    };
+}
+
+function cachePlanState(payload) {
     localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload));
 }
 
-function restoreSavedPlanState() {
+function parseCachedPlanState() {
     const savedRaw = localStorage.getItem(PLAN_STORAGE_KEY);
     if (!savedRaw) {
-        return false;
+        return null;
     }
 
     try {
-        const savedState = JSON.parse(savedRaw);
-        const hasValidMonth =
-            savedState && savedState.monthKey === getCurrentMonthStorageKey();
-        const hasValidDays =
-            Array.isArray(savedState?.planDays) &&
-            savedState.planDays.length === planDays.length;
-
-        if (!hasValidMonth || !hasValidDays) {
-            localStorage.removeItem(PLAN_STORAGE_KEY);
-            return false;
-        }
-
-        planDays.forEach((day, index) => {
-            const savedDay = savedState.planDays[index];
-            if (!savedDay) {
-                return;
-            }
-
-            day.type =
-                typeof savedDay.type === "string" ? savedDay.type : day.type;
-            day.startTime = normalizeTime(savedDay.startTime, "17:00");
-            day.endTime = normalizeTime(savedDay.endTime, "18:30");
-        });
-
-        const restoredIndex = Number(savedState.selectedDayIndex);
-        selectedDayIndex =
-            Number.isInteger(restoredIndex) &&
-            restoredIndex >= 0 &&
-            restoredIndex < planDays.length
-                ? restoredIndex
-                : 0;
-
-        return true;
+        return JSON.parse(savedRaw);
     } catch {
+        localStorage.removeItem(PLAN_STORAGE_KEY);
+        return null;
+    }
+}
+
+function scheduleRemoteSync() {
+    if (!remoteReady || !remoteStateDoc || applyingRemoteState) {
+        return;
+    }
+
+    window.clearTimeout(remoteSyncTimer);
+    remoteSyncTimer = window.setTimeout(async () => {
+        try {
+            await remoteStateDoc.set(getRemotePayload(), { merge: true });
+        } catch (error) {
+            console.error("Firebase sync failed", error);
+        }
+    }, 250);
+}
+
+function savePlanState() {
+    cachePlanState(createPlanStatePayload());
+    scheduleRemoteSync();
+}
+
+function restoreSavedPlanState() {
+    const savedState = parseCachedPlanState();
+    if (!savedState) {
+        return false;
+    }
+
+    if (!applySavedState(savedState)) {
         localStorage.removeItem(PLAN_STORAGE_KEY);
         return false;
     }
+
+    return true;
 }
 
 function togglePlanHelp(forceOpen) {
@@ -162,10 +273,11 @@ function renderPlanHelp() {
 
 function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("gplan-theme", theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
     themeToggle.setAttribute("aria-pressed", String(theme === "light"));
     themeToggle.querySelector(".theme-toggle-label").textContent =
         theme === "light" ? "Tryb ciemny" : "Tryb jasny";
+    scheduleRemoteSync();
 }
 
 function initThemeToggle() {
@@ -182,52 +294,69 @@ function initThemeToggle() {
     });
 }
 
-function formatLongDate(dateObj) {
-    return new Intl.DateTimeFormat("pl-PL", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-    }).format(dateObj);
-}
-
-function formatDateForIcs(dateObj) {
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const day = String(dateObj.getDate()).padStart(2, "0");
-    return `${year}${month}${day}`;
-}
-
-function normalizeTime(value, fallback) {
-    return !value || !/^\d{2}:\d{2}$/.test(value) ? fallback : value;
-}
-
-function escapeIcsText(raw) {
-    return raw
-        .replace(/\\/g, "\\\\")
-        .replace(/;/g, "\\;")
-        .replace(/,/g, "\\,")
-        .replace(/\n/g, "\\n");
-}
-
-function uidFromDay(dayPlan, index) {
-    const stamp = `${dayPlan.isoDate}-${index}-${dayPlan.type}`.replace(
-        /[^0-9A-Za-z-]/g,
-        "",
-    );
-    return `${stamp}@g-plan.local`;
-}
-
-function randomFact() {
-    return triviaBank[Math.floor(Math.random() * triviaBank.length)];
-}
-
-function displayWorkoutLabel(type) {
-    if (type === "Wolne") {
-        return "Rest Day";
+async function initFirebasePersistence() {
+    if (!hasFirebaseConfig) {
+        return false;
     }
 
-    return type === "Legs" ? "Legs & Core" : type;
+    try {
+        if (!window.firebase.apps.length) {
+            window.firebase.initializeApp(firebaseSettings.config);
+        }
+
+        const auth = window.firebase.auth();
+        if (!auth.currentUser) {
+            await auth.signInAnonymously();
+        }
+
+        const user = auth.currentUser;
+        if (!user) {
+            return false;
+        }
+
+        remoteStateDoc = window.firebase
+            .firestore()
+            .collection("gplan-users")
+            .doc(user.uid);
+
+        const snapshot = await remoteStateDoc.get();
+        const remoteState = snapshot.exists ? snapshot.data() : null;
+        const cachedState = parseCachedPlanState();
+        const cachedUpdatedAt = Number(cachedState?.updatedAt) || 0;
+        const remoteUpdatedAt = Number(remoteState?.planState?.updatedAt) || 0;
+
+        if (remoteState?.theme) {
+            applyingRemoteState = true;
+            applyTheme(remoteState.theme);
+            applyingRemoteState = false;
+        }
+
+        if (remoteState?.planState && isValidSavedState(remoteState.planState)) {
+            if (remoteUpdatedAt >= cachedUpdatedAt) {
+                applyingRemoteState = true;
+                applySavedState(remoteState.planState);
+                cachePlanState(remoteState.planState);
+                renderPlanHelp();
+                renderCalendar();
+                if (modalBackdrop.classList.contains("open")) {
+                    openDayModal(selectedDayIndex);
+                }
+                applyingRemoteState = false;
+            }
+        }
+
+        remoteReady = true;
+        if (!snapshot.exists || cachedUpdatedAt > remoteUpdatedAt) {
+            scheduleRemoteSync();
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Firebase init failed", error);
+        remoteReady = false;
+        remoteStateDoc = null;
+        return false;
+    }
 }
 
 function getCurrentMonthPlanInfo() {
@@ -245,16 +374,10 @@ function getMondayFirstWeekday(dateObj) {
     return (dateObj.getDay() + 6) % 7;
 }
 
-function getTrainingEntries() {
-    return planDays.filter((day) => day.type !== "Wolne");
-}
-
-function updateCancelPlanButton() {
-    const canCancel = getTrainingEntries().length > 0;
-    cancelPlanBtn.disabled = !canCancel;
-    cancelPlanBtn.title = canCancel
-        ? "Pobierz plik anulujący wszystkie aktualne treningi"
-        : "W aktualnym planie nie ma treningów do anulowania";
+function isToday(dateObj) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return dateObj.getTime() === today.getTime();
 }
 
 function swapDayAssignments(sourceIndex, targetIndex) {
@@ -317,7 +440,6 @@ function resetPlan() {
     savePlanState();
     renderPlanHelp();
     renderCalendar();
-    updateCancelPlanButton();
 
     if (modalBackdrop.classList.contains("open")) {
         openDayModal(selectedDayIndex);
@@ -342,8 +464,9 @@ function renderCalendar() {
         const btn = document.createElement("button");
         const isOff = day.type === "Wolne";
         const typeClass = isOff ? "off" : day.type.toLowerCase();
+        const label = isOff ? "Rest Day" : displayWorkoutLabel(day.type);
         btn.type = "button";
-        btn.className = `day-btn ${typeClass} ${isOff ? "" : "training"} ${index === selectedDayIndex ? "selected" : ""}`;
+        btn.className = `day-btn ${typeClass} ${isOff ? "" : "training"} ${index === selectedDayIndex ? "selected" : ""} ${isToday(day.dateObj) ? "today" : ""}`;
         btn.dataset.index = String(index);
         btn.draggable = !isOff;
         if (!isOff) {
@@ -354,7 +477,7 @@ function renderCalendar() {
             "aria-label",
             `${formatLongDate(day.dateObj)} — ${displayWorkoutLabel(day.type)}`,
         );
-        btn.innerHTML = `<span>${day.dateObj.getDate()}</span>`;
+        btn.innerHTML = `<span class="day-number">${day.dateObj.getDate()}</span><span class="day-label">${label}</span>`;
         calendarGrid.appendChild(btn);
     });
 }
@@ -466,52 +589,6 @@ function buildSingleDayIcsContent(index) {
     return `${lines.join("\r\n")}\r\n`;
 }
 
-function buildCancelPlanIcsContent() {
-    const trainingEntries = getTrainingEntries();
-    if (trainingEntries.length === 0) {
-        return null;
-    }
-
-    const now = new Date();
-    const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}T${String(now.getUTCHours()).padStart(2, "0")}${String(now.getUTCMinutes()).padStart(2, "0")}${String(now.getUTCSeconds()).padStart(2, "0")}Z`;
-
-    const lines = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//G-Plan//Training Calendar//PL",
-        "CALSCALE:GREGORIAN",
-        "METHOD:CANCEL",
-        "END:VCALENDAR",
-    ];
-
-    const calendarEndIndex = lines.length - 1;
-
-    trainingEntries.forEach((day) => {
-        const start = normalizeTime(day.startTime, "17:00");
-        const end = normalizeTime(day.endTime, "18:30");
-        const startIcs = `${day.isoDate}T${start.replace(":", "")}00`;
-        const endIcs = `${day.isoDate}T${end.replace(":", "")}00`;
-        const dayIndex = planDays.indexOf(day);
-
-        lines.splice(
-            calendarEndIndex,
-            0,
-            "BEGIN:VEVENT",
-            `UID:${uidFromDay(day, dayIndex)}`,
-            `DTSTAMP:${stamp}`,
-            `DTSTART:${startIcs}`,
-            `DTEND:${endIcs}`,
-            "SEQUENCE:1",
-            "STATUS:CANCELLED",
-            `SUMMARY:${escapeIcsText(`Siłownia - ${displayWorkoutLabel(day.type)}`)}`,
-            `DESCRIPTION:${escapeIcsText("Próba anulowania całego planu wygenerowana przez G-Plan.")}`,
-            "END:VEVENT",
-        );
-    });
-
-    return `${lines.join("\r\n")}\r\n`;
-}
-
 function isIosSafari() {
     const userAgent = navigator.userAgent;
     const isAppleMobileDevice =
@@ -562,16 +639,6 @@ function downloadIcsFile() {
     downloadIcsText(buildIcsContent(), "g-plan-aktualny-miesiac.ics");
 }
 
-function downloadCancelPlanFile() {
-    const content = buildCancelPlanIcsContent();
-    if (!content) {
-        updateCancelPlanButton();
-        return;
-    }
-
-    downloadIcsText(content, "g-plan-anuluj-caly-plan.ics");
-}
-
 function downloadSingleDayIcsFile() {
     const content = buildSingleDayIcsContent(selectedDayIndex);
     if (!content) {
@@ -589,6 +656,21 @@ function downloadSingleDayIcsFile() {
         content,
         `g-plan-${day.isoDate}-${workoutSlug || "trening"}.ics`,
     );
+}
+
+function deleteSingleDayEntry() {
+    const day = planDays[selectedDayIndex];
+    if (!day || day.type === "Wolne") {
+        return;
+    }
+
+    day.type = "Wolne";
+    day.startTime = "17:00";
+    day.endTime = "18:30";
+    savePlanState();
+    renderPlanHelp();
+    renderCalendar();
+    openDayModal(selectedDayIndex);
 }
 
 calendarGrid.addEventListener("click", (event) => {
@@ -705,9 +787,9 @@ calendarGrid.addEventListener("drop", (event) => {
     selectedDayIndex = nextSelectedIndex;
     if (swapped) {
         savePlanState();
+        renderPlanHelp();
     }
     renderCalendar();
-    updateCancelPlanButton();
 
     if (modalBackdrop.classList.contains("open")) {
         openDayModal(nextSelectedIndex);
@@ -768,16 +850,26 @@ endTimeInput.addEventListener("input", () => {
 });
 
 recalcBtn.addEventListener("click", resetPlan);
-cancelPlanBtn.addEventListener("click", downloadCancelPlanFile);
 downloadDayIcsBtn.addEventListener("click", downloadSingleDayIcsFile);
-
+deleteDayEntryBtn.addEventListener("click", deleteSingleDayEntry);
 downloadBtn.addEventListener("click", downloadIcsFile);
 
-initThemeToggle();
-generatePlan();
-if (!restoreSavedPlanState()) {
-    savePlanState();
+async function initApp() {
+    initThemeToggle();
+    generatePlan();
+    const restoredFromCache = restoreSavedPlanState();
+
+    if (!restoredFromCache) {
+        savePlanState();
+    }
+
+    renderPlanHelp();
+    renderCalendar();
+    initFirebasePersistence();
+
+    if (remoteReady && !restoredFromCache) {
+        scheduleRemoteSync();
+    }
 }
-renderPlanHelp();
-renderCalendar();
-updateCancelPlanButton();
+
+initApp();
